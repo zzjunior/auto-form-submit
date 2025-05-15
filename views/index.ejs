@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Auto Cadastro de Vendedores</title>
+</head>
+<body>
+  <h1>Enviar planilha de vendedores</h1>
+  <form action="/process" method="POST" enctype="multipart/form-data">
+    <label>Planilha (.xlsx):</label>
+    <input type="file" name="planilha" required><br><br>
+    <label>URL do formulário:</label>
+    <input type="url" name="url" required value="https://teiacrm.com.br/userregistrationlink/new/IrL9owMkYpfPO0Y"><br><br>
+    <button type="submit">Processar</button>
+  </form>
+</body>
+</html>
