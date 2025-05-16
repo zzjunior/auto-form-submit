@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const xlsx = require('xlsx');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
 
@@ -26,8 +26,9 @@ app.post('/process', upload.single('planilha'), async (req, res) => {
 
   try {
     const browser = await puppeteer.launch({
-      headless: false,
-      timeout: 60000, // Timeout global do puppeteer 60s
+      headless: true,
+      executablePath: '/usr/bin/chromium-browser', // ou '/usr/bin/chromium' se necessário
+      timeout: 60000,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: null,
     });
@@ -58,7 +59,7 @@ app.post('/process', upload.single('planilha'), async (req, res) => {
 
       } catch (err) {
         console.error(`Erro processando ${row['Nome completo do vendedor']}:`, err);
-        continue; // continua para o próximo registro sem abortar tudo
+        continue;
       }
     }
 
