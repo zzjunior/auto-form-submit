@@ -7,6 +7,9 @@ const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
 
+// Adicione o store de sessão para produção:
+const MySQLStore = require('express-mysql-session')(session);
+
 const authRoutes = require('./routes/auth');
 const ensureAuthenticated = require('./middlewares/authMiddleware');
 const db = require('./db');
@@ -18,10 +21,19 @@ app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
+// Configuração do store de sessão usando MySQL
+const sessionStore = new MySQLStore({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME
+});
+
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  store: sessionStore // agora usando MySQL para sessões
 }));
 
 app.use(authRoutes);
