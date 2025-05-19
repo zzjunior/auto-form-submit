@@ -27,6 +27,24 @@ router.get('/login', (req, res) => {
             margin: 4vh 8px;
           }
         }
+        footer {
+          margin-top: 32px;
+          text-align: center;
+        }
+        .alert-help {
+          display: inline-flex;
+          align-items: center;
+          background: #fff3cd;
+          color:rgb(216, 0, 0);
+          border: 1px solid rgb(243, 232, 198);
+          border-radius: 6px;
+          padding: 10px 18px;
+          font-size: 1rem;
+          margin-top: 12px;
+        }
+        .alert-help svg {
+          margin-right: 8px;
+        }
       </style>
     </head>
     <body>
@@ -45,6 +63,15 @@ router.get('/login', (req, res) => {
             <button type="submit" class="btn btn-primary w-100">Entrar</button>
           </form>
         </div>
+        <footer>
+          <div class="alert-help shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M7.938 2.016a.13.13 0 0 1 .125 0l6.857 11.856c.03.052.03.116 0 .168a.13.13 0 0 1-.125.064H1.205a.13.13 0 0 1-.125-.064.145.145 0 0 1 0-.168L7.938 2.016zm.823-1.447a1.13 1.13 0 0 0-1.624 0L.28 12.425C-.36 13.44.388 14.75 1.57 14.75h12.86c1.182 0 1.93-1.31 1.29-2.325L8.76.569z"/>
+              <path d="M7.002 11a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm.93-6.481a.5.5 0 0 1 .992 0l-.35 4.5a.5.5 0 0 1-.992 0l-.35-4.5z"/>
+            </svg>
+            É preciso um login do <a href="https://help.teia.com.br" target="_blank" class="text-decoration-none">Help TEIA</a> para utilizar a ferramenta...
+          </div>
+        </footer>
       </div>
     </body>
     </html>
