@@ -1,9 +1,15 @@
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const xlsx = require('xlsx');
 const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
+const session = require('express-session');
+
+const authRoutes = require('./routes/auth');
+const ensureAuthenticated = require('./middlewares/authMiddleware');
+const db = require('./db');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -12,11 +18,20 @@ app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/', (req, res) => {
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false
+}));
+
+app.use(authRoutes);
+
+// Página principal (protegida)
+app.get('/', ensureAuthenticated, (req, res) => {
   res.render('index');
 });
 
-app.post('/process', upload.single('planilha'), async (req, res) => {
+app.post('/process', ensureAuthenticated, upload.single('planilha'), async (req, res) => {
   const filePath = req.file.path;
   const url = req.body.url;
 
@@ -27,7 +42,7 @@ app.post('/process', upload.single('planilha'), async (req, res) => {
   try {
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: '/usr/bin/chromium-browser', // ou '/usr/bin/chromium' se necessário
+      executablePath: '/usr/bin/chromium-browser', // ou '/usr/bin/chromium'
       timeout: 60000,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: null,
@@ -73,6 +88,7 @@ app.post('/process', upload.single('planilha'), async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log('Servidor rodando em http://localhost:3000');
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
