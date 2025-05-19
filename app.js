@@ -6,8 +6,6 @@ const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
-
-// Adicione o store de sessão para produção:
 const MySQLStore = require('express-mysql-session')(session);
 
 const authRoutes = require('./routes/auth');
@@ -33,12 +31,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  store: sessionStore // agora usando MySQL para sessões
+  store: sessionStore 
 }));
 
 app.use(authRoutes);
 
-// Página principal (protegida)
 app.get('/', ensureAuthenticated, (req, res) => {
   res.render('index');
 });
@@ -52,9 +49,23 @@ app.post('/process', ensureAuthenticated, upload.single('planilha'), async (req,
   const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
   try {
+    // Detecta caminho do Chromium automaticamente
+    const chromiumPaths = [
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable'
+    ];
+
+    const executablePath = chromiumPaths.find(p => fs.existsSync(p));
+    if (!executablePath) {
+      console.error('Chromium não encontrado.');
+      return res.status(500).send('Chromium não encontrado no ambiente.');
+    }
+
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: '/usr/bin/chromium-browser', // ou '/usr/bin/chromium'
+      executablePath,
       timeout: 60000,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: null,
