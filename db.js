@@ -1,3 +1,4 @@
+const mysql = require('mysql');
 console.log('Iniciando conexão com o banco...');
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
