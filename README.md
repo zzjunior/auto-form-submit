@@ -33,15 +33,16 @@ npm start
 2. Acesse a interface web no navegador:
 
 ```
-http://localhost:3000
+http://localhost:8080
 ```
 
 3. Na página:
    - Faça upload da planilha `.xlsx`
-   - Informe o link do formulário de destino (já vem preenchido com um exemplo)
-   - Clique em **Processar**
-
-O sistema abrirá um navegador (via Puppeteer) e irá preencher os dados de cada linha da planilha no formulário indicado.
+   - Informe o link do formulário de destino (já vem preenchido com um exemplo) Você pode usar qualquer link de formulario, mas se atente aos "campos" de cada no `app.js`.
+   - Você consegue editar os valores dos campos do formulario e qual a associação deles com cada coluna da planilha enviada
+   - Após tudo configurado e pronto, clique em **Processar**, sempre realize testes antes.
+ 
+O sistema abrirá um navegador (via Puppeteer) e irá preencher os dados de cada linha da planilha no formulário indicado. _Em produção a página com o bot rodando não será exibida, apenas o carregamento_
 
 ## Observações
 
