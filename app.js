@@ -9,6 +9,7 @@ const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
 
 const authRoutes = require('./routes/auth');
+const phelpsRoutes = require('./routes/phelps');
 const ensureAuthenticated = require('./middlewares/authMiddleware');
 const db = require('./db');
 
@@ -35,6 +36,7 @@ app.use(session({
 }));
 
 app.use(authRoutes);
+app.use(phelpsRoutes);
 
 app.get('/', ensureAuthenticated, (req, res) => {
   res.render('index');
