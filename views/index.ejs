@@ -196,50 +196,88 @@
       sidebar.classList.toggle('collapsed');
     });
 
-    let stopProcessing = false;
+    let isProcessing = false;
+    let currentExecutionId = null;
+    let progressInterval = null;
 
-    document.getElementById('form-process').addEventListener('submit', async function(e) {
+    document.getElementById('form-process').addEventListener('submit', handleFormSubmit);
+
+    async function handleFormSubmit(e) {
       e.preventDefault();
-      stopProcessing = false;
+
+      if (isProcessing) {
+        console.log('Já está processando, ignorando submit duplicado');
+        return;
+      }
+
+      isProcessing = true;
       const form = e.target;
       const formData = new FormData(form);
 
       const modal = new bootstrap.Modal(document.getElementById('processModal'));
       const modalBody = document.getElementById('processModalBody');
       const btnStop = document.getElementById('btnStopProcess');
-      btnStop.style.display = 'inline-block';
 
-      // Garante que o elemento existe antes de acessar innerHTML
-      if (modalBody) {
-        modalBody.innerHTML = `
-          <div class="text-center mb-3">
-            <div class="spinner-border"></div>
-            <div>Processando...</div>
-          </div>
-          <ul class="list-group" id="processList"></ul>
-        `;
-      }
+      btnStop.style.display = 'inline-block';
+      modalBody.innerHTML = `
+        <div class="text-center mb-3" id="processSpinner">
+          <div class="spinner-border"></div>
+          <div>Processando...</div>
+        </div>
+        <div class="progress mb-3">
+          <div class="progress-bar" role="progressbar" style="width: 0%" id="progressBarProcess">0%</div>
+        </div>
+        <div id="statusTextProcess">Preparando...</div>
+        <ul class="list-group mt-3" id="processList"></ul>
+      `;
       modal.show();
 
-      // Função para atualizar a lista no modal
-      function atualizarLista(resultados) {
-        const ul = document.getElementById('processList');
-        if (!ul) return;
-        ul.innerHTML = '';
-        resultados.forEach(r => {
-          if (r.status === 'sucesso') {
-            ul.innerHTML += `<li class="list-group-item list-group-item-success">Linha ${r.linha}: ${r.nome} - ${r.mensagem}</li>`;
-          } else {
-            ul.innerHTML += `<li class="list-group-item list-group-item-danger">Linha ${r.linha}: ${r.nome} - Erro: ${r.mensagem}</li>`;
+      // Função para atualizar barra de progresso e status
+      function atualizarProgressoProcess(progress) {
+        const progressBar = document.getElementById('progressBarProcess');
+        const spinner = document.getElementById('processSpinner');
+        const statusText = document.getElementById('statusTextProcess');
+        const processList = document.getElementById('processList');
+
+        if (progressBar) {
+          progressBar.style.width = `${progress.progresso || 0}%`;
+          progressBar.textContent = `${progress.progresso || 0}%`;
+        }
+        if (statusText) {
+          statusText.textContent = `Processadas: ${progress.processadas || 0}/${progress.total || 0} (${progress.progresso || 0}%)`;
+        }
+        if (processList && progress.resultados) {
+          processList.innerHTML = progress.resultados.map(r =>
+            `<li class="list-group-item list-group-item-${r.status === 'sucesso' ? 'success' : 'danger'}">
+              Linha ${r.linha}: ${r.nome} - ${r.status === 'sucesso' ? r.mensagem : 'Erro: ' + r.mensagem}
+            </li>`
+          ).join('');
+        }
+        // Esconde spinner e porcentagem ao finalizar
+        if (progress.status === 'finalizado' || progress.status === 'parado' || progress.status === 'erro') {
+          if (spinner) spinner.style.display = 'none';
+          if (progressBar) progressBar.style.display = 'none';
+          if (statusText) {
+            if (progress.status === 'finalizado') {
+              statusText.innerHTML =
+                `<div class="alert alert-success">Processamento concluído! ${progress.processadas}/${progress.total} linhas processadas.</div>`;
+            } else if (progress.status === 'parado') {
+              statusText.innerHTML =
+                `<div class="alert alert-warning">Processamento interrompido! ${progress.processadas}/${progress.total} linhas processadas.</div>`;
+            } else {
+              statusText.innerHTML =
+                `<div class="alert alert-danger">Erro no processamento: ${progress.erro}</div>`;
+            }
           }
-        });
+        }
       }
 
-      // Parar processamento
-      btnStop.onclick = function() {
-        stopProcessing = true;
+      btnStop.onclick = async function() {
         btnStop.disabled = true;
         btnStop.innerText = "Parando...";
+        if (currentExecutionId) {
+          await fetch(`/process/parar/${currentExecutionId}`, { method: 'POST' });
+        }
       };
 
       try {
@@ -249,30 +287,49 @@
         });
         const result = await response.json();
 
-        atualizarLista(result.resultados);
-        btnStop.style.display = 'none';
-        if (modalBody) {
-          modalBody.innerHTML =
-            `<div class="alert alert-success">Processamento concluído!</div>` +
-            `<ul class="list-group mt-2">${result.resultados.map(r =>
-              `<li class="list-group-item list-group-item-${r.status === 'sucesso' ? 'success' : 'danger'}">
-                Linha ${r.linha}: ${r.nome} - ${r.status === 'sucesso' ? r.mensagem : 'Erro: ' + r.mensagem}
-              </li>`
-            ).join('')}</ul>`;
+        if (result.status === 'iniciado') {
+          currentExecutionId = result.executionId;
+          document.getElementById('statusTextProcess').textContent = `Processando ${result.total} linhas...`;
+
+          progressInterval = setInterval(async () => {
+            try {
+              const progressResponse = await fetch(`/process/progresso/${currentExecutionId}`);
+              const progress = await progressResponse.json();
+
+              if (progress.status === 'nao_encontrado') {
+                clearInterval(progressInterval);
+                return;
+              }
+
+              atualizarProgressoProcess(progress);
+
+              if (progress.status === 'finalizado' || progress.status === 'parado' || progress.status === 'erro') {
+                clearInterval(progressInterval);
+                progressInterval = null;
+                btnStop.style.display = 'none';
+                isProcessing = false;
+                // Salva no histórico
+                const nomeArquivo = document.getElementById('planilha').files[0]?.name || 'Planilha';
+                salvarHistorico(nomeArquivo, formData);
+              }
+            } catch (err) {
+              console.error('Erro ao verificar progresso:', err);
+            }
+          }, 2000);
+
+        } else {
+          btnStop.style.display = 'none';
+          modalBody.innerHTML = `<div class="alert alert-danger">Erro ao iniciar: ${result.mensagem}</div>`;
+          isProcessing = false;
         }
       } catch (err) {
         btnStop.style.display = 'none';
-        if (modalBody) {
-          modalBody.innerHTML = `<div class="alert alert-danger">Erro ao processar: ${err.message}</div>`;
-        }
+        modalBody.innerHTML = `<div class="alert alert-danger">Erro ao processar: ${err.message}</div>`;
+        isProcessing = false;
       }
+    }
 
-      // Após processar, salva no histórico
-      const nomeArquivo = document.getElementById('planilha').files[0]?.name || 'Planilha';
-      salvarHistorico(nomeArquivo, formData);
-    });
-
-    // Carrega histórico do localStorage ao abrir a página
+    // Funções do histórico
     function carregarHistorico() {
       const historico = JSON.parse(localStorage.getItem('historicoUploads') || '[]');
       const ul = document.getElementById('historicoUploads');
@@ -297,7 +354,6 @@
       }
     }
 
-    // Salva histórico no localStorage
     function salvarHistorico(nomeArquivo, formData) {
       const historico = JSON.parse(localStorage.getItem('historicoUploads') || '[]');
       historico.unshift({
@@ -305,101 +361,18 @@
         dataHora: new Date().toLocaleString(),
         formData: Object.fromEntries(formData.entries())
       });
-      // Limita histórico a 10 uploads
       localStorage.setItem('historicoUploads', JSON.stringify(historico.slice(0, 10)));
       carregarHistorico();
     }
 
-    // Processar novamente
     window.processarNovamente = function(idx) {
       const historico = JSON.parse(localStorage.getItem('historicoUploads') || '[]');
       const item = historico[idx];
       if (!item) return;
-      // Cria um novo FormData e preenche os campos
-      const formData = new FormData();
-      for (const key in item.formData) {
-        if (key === 'planilha') {
-          alert('O arquivo original não está disponível localmente. Faça upload novamente.');
-          return;
-        }
-        formData.append(key, item.formData[key]);
-      }
-      // Preenche o campo URL no formulário
       document.getElementById('url').value = item.formData.url || '';
-      // Abre modal e processa novamente (sem arquivo)
       alert('Para processar novamente, envie a planilha novamente.');
     };
 
-    // Ao enviar o formulário, salva no histórico
-    document.getElementById('form-process').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      stopProcessing = false;
-      const form = e.target;
-      const formData = new FormData(form);
-
-      const modal = new bootstrap.Modal(document.getElementById('processModal'));
-      const modalBody = document.getElementById('processModalBody');
-      const btnStop = document.getElementById('btnStopProcess');
-      btnStop.style.display = 'inline-block';
-      modalBody.innerHTML = `
-        <div class="text-center mb-3">
-          <div class="spinner-border"></div>
-          <div>Processando...</div>
-        </div>
-        <ul class="list-group" id="processList"></ul>
-      `;
-      modal.show();
-
-      // Função para atualizar a lista no modal
-      function atualizarLista(resultados) {
-        const ul = document.getElementById('processList');
-        if (!ul) return;
-        ul.innerHTML = '';
-        resultados.forEach(r => {
-          if (r.status === 'sucesso') {
-            ul.innerHTML += `<li class="list-group-item list-group-item-success">Linha ${r.linha}: ${r.nome} - ${r.mensagem}</li>`;
-          } else {
-            ul.innerHTML += `<li class="list-group-item list-group-item-danger">Linha ${r.linha}: ${r.nome} - Erro: ${r.mensagem}</li>`;
-          }
-        });
-      }
-
-      // Parar processamento
-      btnStop.onclick = function() {
-        stopProcessing = true;
-        btnStop.disabled = true;
-        btnStop.innerText = "Parando...";
-      };
-
-      try {
-        // Envia o formulário normalmente e aguarda a resposta completa
-        const response = await fetch('/process', {
-          method: 'POST',
-          body: formData
-        });
-        const result = await response.json();
-
-        // Exibe o resultado normalmente
-        atualizarLista(result.resultados);
-        btnStop.style.display = 'none';
-        modalBody.innerHTML =
-          `<div class="alert alert-success">Processamento concluído!</div>` +
-          `<ul class="list-group mt-2">${result.resultados.map(r =>
-            `<li class="list-group-item list-group-item-${r.status === 'sucesso' ? 'success' : 'danger'}">
-              Linha ${r.linha}: ${r.nome} - ${r.status === 'sucesso' ? r.mensagem : 'Erro: ' + r.mensagem}
-            </li>`
-          ).join('')}</ul>`;
-      } catch (err) {
-        btnStop.style.display = 'none';
-        modalBody.innerHTML = `<div class="alert alert-danger">Erro ao processar: ${err.message}</div>`;
-      }
-
-      // Após processar, salva no histórico
-      const nomeArquivo = document.getElementById('planilha').files[0]?.name || 'Planilha';
-      salvarHistorico(nomeArquivo, formData);
-    });
-
-    // Carrega histórico ao abrir a página
     carregarHistorico();
   </script>
 </body>

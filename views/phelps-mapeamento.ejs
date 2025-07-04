@@ -2,7 +2,6 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mapeamento de Campos - Phelps</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css?family=Poppins:400,500,600&display=swap" rel="stylesheet">
@@ -34,12 +33,24 @@
       display: block;
       transition: background 0.2s, padding 0.2s, opacity 0.2s;
     }
-    .sidebar.collapsed .nav-link span {
+    .sidebar .nav-link .sidebar-label {
+      display: inline;
+    }
+    .sidebar.collapsed .nav-link .sidebar-label {
       display: none;
     }
+    .sidebar .nav-link i {
+      margin-left: 8px;
+      font-size: 1.2em;
+    }
     .sidebar.collapsed .nav-link {
-      padding: 12px 10px;
       text-align: center;
+      padding-left: 0;
+      padding-right: 0;
+    }
+    .sidebar.collapsed .nav-link i {
+      margin-left: 0;
+      font-size: 1.5em;
     }
     .sidebar .nav-link:hover {
       background: #f8f9fa;
@@ -62,6 +73,18 @@
       z-index: 1050;
       box-shadow: 0 2px 8px rgba(0,0,0,0.07);
       transition: right 0.2s;
+      font-size: 1.5rem;
+      color: #333;
+    }
+    .sidebar-toggle .toggle-icon {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #333;
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+    .sidebar.collapsed .sidebar-toggle .toggle-icon {
+      transform: rotate(180deg);
     }
     .sidebar.collapsed + .main-content {
       margin-left: 60px;
@@ -98,6 +121,10 @@
       <span class="sidebar-label">Início</span>
       <i class="fa-solid fa-house-chimney"></i>
     </a>
+    <a href="/phelps" class="nav-link">
+      <span class="sidebar-label">PHELPS</span>
+      <i class="fa-solid fa-person-swimming"></i>
+    </a>
     <a href="/logout" class="nav-link">
       <span class="sidebar-label">Sair</span>
       <i class="fa-solid fa-right-from-bracket"></i>
@@ -110,8 +137,8 @@
         <div class="col-md-8">
           <div class="card shadow">
             <div class="card-body">
-              <h5 class="card-title mb-4 text-center">Mapeamento dos Campos da Planilha</h5>
-              <form action="/phelps/processar" method="post">
+              <h5 class="card-title mb-4 text-center">Mapeamento dos Campos da Planilha - Phelps</h5>
+              <form id="form-phelps-process" action="/phelps/processar" method="post">
                 <div class="row">
                   <% camposFormulario.forEach(function(campo) { %>
                     <div class="col-md-6 mb-3">
@@ -127,6 +154,14 @@
                 </div>
                 <button type="submit" class="btn btn-primary w-100 mt-3">Processar</button>
               </form>
+
+              <!-- Histórico de planilhas processadas -->
+              <div class="mt-4">
+                <h6 class="text-black-50 mb-2"><i class="fa-solid fa-clock-rotate-left"></i> Histórico Phelps</h6>
+                <ul class="list-group" id="historicoPhelps">
+                  <!-- Preenchido via JS -->
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -139,6 +174,26 @@
       </div>
     </footer>
   </div>
+
+  <!-- Modal Bootstrap -->
+  <div class="modal fade" id="phelpsModal" tabindex="-1" aria-labelledby="phelpsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="phelpsModalLabel">Resultado do Processamento Phelps</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body" id="phelpsModalBody">
+          <!-- Conteúdo preenchido via JS -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-danger" id="btnStopPhelps" style="display:none;">Parar de processar</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const sidebar = document.getElementById('sidebar');
@@ -146,6 +201,207 @@
     sidebarToggle.addEventListener('click', function() {
       sidebar.classList.toggle('collapsed');
     });
+
+    let isProcessingPhelps = false;
+    let currentExecutionId = null;
+    let progressInterval = null;
+
+    // Processa formulário Phelps
+    document.getElementById('form-phelps-process').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      if (isProcessingPhelps) {
+        console.log('Já está processando Phelps, ignorando submit duplicado');
+        return;
+      }
+      
+      isProcessingPhelps = true;
+      const form = e.target;
+      const formData = new FormData(form);
+
+      // DEBUG MAIS DETALHADO
+      console.log('=== DEBUG FRONTEND PHELPS ===');
+      console.log('Form element:', form);
+      console.log('FormData entries:');
+      for (let [key, value] of formData.entries()) {
+        console.log(`${key}: "${value}"`);
+      }
+      
+      // Converte FormData para objeto para debug
+      const mapeamentoObj = Object.fromEntries(formData.entries());
+      console.log('Mapeamento como objeto:', mapeamentoObj);
+
+      // Verifica se todos os campos obrigatórios foram mapeados
+      const camposObrigatorios = ['nome_completo', 'CPF', 'name', 'slug'];
+      let camposSemMapeamento = [];
+      
+      camposObrigatorios.forEach(campo => {
+        const valor = formData.get(campo);
+        if (!valor) {
+          camposSemMapeamento.push(campo);
+        }
+      });
+
+      if (camposSemMapeamento.length > 0) {
+        alert(`Os seguintes campos obrigatórios não foram mapeados: ${camposSemMapeamento.join(', ')}`);
+        isProcessingPhelps = false;
+        return;
+      }
+
+      const modal = new bootstrap.Modal(document.getElementById('phelpsModal'));
+      const modalBody = document.getElementById('phelpsModalBody');
+      const btnStop = document.getElementById('btnStopPhelps');
+      
+      btnStop.style.display = 'inline-block';
+      modalBody.innerHTML = `
+        <div class="text-center mb-3" id="phelpsSpinner">
+          <div class="spinner-border"></div>
+          <div>Iniciando processamento Phelps...</div>
+        </div>
+        <div class="progress mb-3">
+          <div class="progress-bar" role="progressbar" style="width: 0%" id="progressBar">0%</div>
+        </div>
+        <div id="statusText">Preparando...</div>
+        <ul class="list-group mt-3" id="phelpsProcessList"></ul>
+      `;
+      modal.show();
+
+      try {
+        const response = await fetch('/phelps/processar', {
+          method: 'POST',
+          body: formData
+        });
+        const result = await response.json();
+
+        if (result.status === 'iniciado') {
+          currentExecutionId = result.executionId;
+          document.getElementById('statusText').textContent = `Processando ${result.total} linhas...`;
+          
+          // Configura botão de parar
+          btnStop.onclick = async function() {
+            btnStop.disabled = true;
+            btnStop.innerText = "Parando...";
+            
+            await fetch(`/phelps/parar/${currentExecutionId}`, { method: 'POST' });
+          };
+
+          // Inicia monitoramento do progresso
+          progressInterval = setInterval(async () => {
+            try {
+              const progressResponse = await fetch(`/phelps/progresso/${currentExecutionId}`);
+              const progress = await progressResponse.json();
+              
+              if (progress.status === 'nao_encontrado') {
+                clearInterval(progressInterval);
+                return;
+              }
+
+              // Atualiza barra de progresso
+              const progressBar = document.getElementById('progressBar');
+              progressBar.style.width = `${progress.progresso}%`;
+              progressBar.textContent = `${progress.progresso}%`;
+              
+              // Atualiza status
+              document.getElementById('statusText').textContent = 
+                `Processadas: ${progress.processadas}/${progress.total} (${progress.progresso}%)`;
+
+              // Atualiza lista de resultados
+              const processList = document.getElementById('phelpsProcessList');
+              processList.innerHTML = progress.resultados.map(r =>
+                `<li class="list-group-item list-group-item-${r.status === 'sucesso' ? 'success' : 'danger'}">
+                  Linha ${r.linha}: ${r.nome} - ${r.status === 'sucesso' ? r.mensagem : 'Erro: ' + r.mensagem}
+                </li>`
+              ).join('');
+
+              // Verifica se terminou
+              if (progress.status === 'finalizado' || progress.status === 'parado' || progress.status === 'erro') {
+                clearInterval(progressInterval);
+                progressInterval = null;
+                btnStop.style.display = 'none';
+                isProcessingPhelps = false;
+                
+                if (progress.status === 'finalizado') {
+                  document.getElementById('statusText').innerHTML = 
+                    `<div class="alert alert-success">Processamento concluído! ${progress.processadas}/${progress.total} linhas processadas.</div>`;
+                } else if (progress.status === 'parado') {
+                  document.getElementById('statusText').innerHTML = 
+                    `<div class="alert alert-warning">Processamento interrompido! ${progress.processadas}/${progress.total} linhas processadas.</div>`;
+                } else {
+                  document.getElementById('statusText').innerHTML = 
+                    `<div class="alert alert-danger">Erro no processamento: ${progress.erro}</div>`;
+                }
+
+                // Salva no histórico
+                salvarHistoricoPhelps(formData);
+              }
+            } catch (err) {
+              console.error('Erro ao verificar progresso:', err);
+            }
+          }, 2000); // Verifica a cada 2 segundos
+
+        } else {
+          btnStop.style.display = 'none';
+          modalBody.innerHTML = `<div class="alert alert-danger">Erro ao iniciar: ${result.mensagem}</div>`;
+          isProcessingPhelps = false;
+        }
+      } catch (err) {
+        btnStop.style.display = 'none';
+        modalBody.innerHTML = `<div class="alert alert-danger">Erro ao processar: ${err.message}</div>`;
+        isProcessingPhelps = false;
+      }
+    });
+
+    // Funções do histórico Phelps
+    function carregarHistoricoPhelps() {
+      const historico = JSON.parse(localStorage.getItem('historicoPhelps') || '[]');
+      const ul = document.getElementById('historicoPhelps');
+      ul.innerHTML = '';
+      if (historico.length === 0) {
+        ul.innerHTML = '<li class="list-group-item text-muted">Nenhuma planilha Phelps processada ainda.</li>';
+      } else {
+        historico.forEach((item, idx) => {
+          ul.innerHTML += `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>
+                <i class="fa-solid fa-person-swimming text-primary"></i>
+                <b>Phelps - ${item.dataHora}</b>
+              </span>
+              <button class="btn btn-outline-primary btn-sm" onclick="reprocessarPhelps(${idx})">
+                <i class="fa-solid fa-rotate-right"></i> Reprocessar
+              </button>
+            </li>
+          `;
+        });
+      }
+    }
+
+    function salvarHistoricoPhelps(formData) {
+      const historico = JSON.parse(localStorage.getItem('historicoPhelps') || '[]');
+      historico.unshift({
+        dataHora: new Date().toLocaleString(),
+        mapeamento: Object.fromEntries(formData.entries())
+      });
+      localStorage.setItem('historicoPhelps', JSON.stringify(historico.slice(0, 10)));
+      carregarHistoricoPhelps();
+    }
+
+    window.reprocessarPhelps = function(idx) {
+      const historico = JSON.parse(localStorage.getItem('historicoPhelps') || '[]');
+      const item = historico[idx];
+      if (!item) return;
+      
+      // Preenche os selects com o mapeamento salvo
+      for (const [campo, coluna] of Object.entries(item.mapeamento)) {
+        const select = document.querySelector(`select[name="${campo}"]`);
+        if (select) {
+          select.value = coluna;
+        }
+      }
+      
+      alert('Mapeamento restaurado! Faça novo upload da planilha e clique em Processar.');
+    };
+
+    carregarHistoricoPhelps();
   </script>
 </body>
 </html>
