@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim@sha256:1e2e4e3d2e7e6b1e7e3e6e7e6e7e6e7e6e7e6e7e6e7e6e7e6e7e6e7e6e7e6e7e6e7e6e7e6e7e6
+FROM node:20-bookworm-slim
 
 # Atualiza pacotes do sistema para reduzir vulnerabilidades
 RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
